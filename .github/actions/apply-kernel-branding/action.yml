@@ -1,5 +1,5 @@
 name: 'Apply Kernel Branding'
-description: 'Apply Wild kernel branding to kernel version string'
+description: 'Apply kernel branding to kernel version string'
 inputs:
   build_type:
     description: 'Build type (Normal, Bypass, MarionKernel, Hakan, etc.)'
@@ -16,30 +16,33 @@ runs:
       working-directory: ${{ github.workspace }}/kernel
       run: |
         # Apply kernel branding based on version and variant
+        # Removed "-Wild" prefix as per user request
         if [[ "${{ inputs.kernel_version }}" == "5."* ]] || [[ "${{ inputs.kernel_version }}" == "6.1" ]]; then
           # Older kernels: append to end of version string
           case ${{ inputs.build_type }} in
             MarionKernel)
-              perl -i -0777 -pe 's/(.*)echo "\$res"/$1echo "\$res-Wild-MarionKernel"/s' ./common/scripts/setlocalversion
+              perl -i -0777 -pe 's/(.*)echo "\$res"/$1echo "\$res-MarionKernel"/s' ./common/scripts/setlocalversion
               ;;
             Hakan)
-              perl -i -0777 -pe 's/(.*)echo "\$res"/$1echo "\$res-Wild-Hakan"/s' ./common/scripts/setlocalversion
+              perl -i -0777 -pe 's/(.*)echo "\$res"/$1echo "\$res-Hakan"/s' ./common/scripts/setlocalversion
               ;;
             TheWildJames)
-              perl -i -0777 -pe 's/(.*)echo "\$res"/$1echo "\$res-Wild-TheWildJames"/s' ./common/scripts/setlocalversion
+              perl -i -0777 -pe 's/(.*)echo "\$res"/$1echo "\$res-TheWildJames"/s' ./common/scripts/setlocalversion
               ;;
             vTomsonek)
-              perl -i -0777 -pe 's/(.*)echo "\$res"/$1echo "\$res-Wild-vTomsonek"/s' ./common/scripts/setlocalversion
+              perl -i -0777 -pe 's/(.*)echo "\$res"/$1echo "\$res-vTomsonek"/s' ./common/scripts/setlocalversion
               ;;
-            *)
-              perl -i -0777 -pe 's/(.*)echo "\$res"/$1echo "\$res-Wild"/s' ./common/scripts/setlocalversion
+            Normal|Bypass|*)
+              # Do nothing for Normal/Bypass/others if we just want to remove "-Wild"
+              # perl -i -0777 -pe 's/(.*)echo "\$res"/$1echo "\$res"/s' ./common/scripts/setlocalversion
               ;;
           esac
         else
           # Newer kernels (6.6+): insert before scm_version
           case ${{ inputs.build_type }} in
-            *)
-              perl -i -0777 -pe 's/(.*)echo "\$\{KERNELVERSION\}\$\{file_localversion\}\$\{config_localversion\}\$\{LOCALVERSION\}\$\{scm_version\}"/$1echo "\${KERNELVERSION}\${file_localversion}\${config_localversion}\${LOCALVERSION}-Wild\${scm_version}"/s' ./common/scripts/setlocalversion
+            Normal|Bypass|*)
+              # Simply don't insert "-Wild"
+              # perl -i -0777 -pe 's/(.*)echo "\$\{KERNELVERSION\}\$\{file_localversion\}\$\{config_localversion\}\$\{LOCALVERSION\}\$\{scm_version\}"/$1echo "\${KERNELVERSION}\${file_localversion}\${config_localversion}\${LOCALVERSION}\${scm_version}"/s' ./common/scripts/setlocalversion
               ;;
           esac
         fi

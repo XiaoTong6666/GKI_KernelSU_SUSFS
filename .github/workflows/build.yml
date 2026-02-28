@@ -1,4 +1,8 @@
 name: Kernel Build Process
+# 分析：
+# 这是一个可复用的工作流，处理单个内核版本的核心构建逻辑。
+# 主工作流 (main.yml) 会为构建矩阵中的每个条目调用此工作流。
+
 permissions:
   contents: write
   actions: write
@@ -27,9 +31,15 @@ jobs:
 
     steps:
     - name: Checkout Repository
+      # 检出仓库：
+      # 拉取当前 GKI 项目仓库的代码，这是执行后续脚本的基础。
       uses: actions/checkout@v4
 
     - name: Parse kernel version
+      # 解析内核版本：
+      # 1. 接收完整的版本字符串 (如 "5.15.41-android13-2022-06")。
+      # 2. 将其拆分为独立的组件：Kernel Version, Sublevel, Android Version, OS Patch Level。
+      # 3. 将这些组件导出为环境变量和 outputs，供后续步骤使用（例如用于选择正确的分支名）。
       id: parse
       run: |
         # Parse from format: 5.10.125-android14-stable
@@ -38,10 +48,15 @@ jobs:
         KERNEL_BASE="${INPUT_VERSION%%-*}"
         KERNEL_VERSION="${KERNEL_BASE%.*}"
         SUB_LEVEL="${KERNEL_BASE##*.}"
-        ANDROID_VERSION="${INPUT_VERSION#*-}"
-        ANDROID_VERSION="${ANDROID_VERSION%%-*}"
-        OS_PATCH_LEVEL="${INPUT_VERSION#*-}"
-        OS_PATCH_LEVEL="${OS_PATCH_LEVEL#*-}"
+        
+        # Extract part after first dash: android13-2025-01
+        TEMP_VER="${INPUT_VERSION#*-}"
+        
+        # Extract Android Version (everything before the next dash)
+        ANDROID_VERSION="${TEMP_VER%%-*}"
+        
+        # Extract OS Patch Level (everything after the next dash)
+        OS_PATCH_LEVEL="${TEMP_VER#*-}"
         
         # Set environment variables for subsequent steps and shell scripts
         echo "ANDROID_VERSION=$ANDROID_VERSION" >> "$GITHUB_ENV"
@@ -56,6 +71,9 @@ jobs:
         echo "os_patch_level=$OS_PATCH_LEVEL" >> $GITHUB_OUTPUT
 
     - name: Free Disk Space
+      # 释放磁盘空间：
+      # 移除 Runner 环境中预装的大型工具包（如 Azure CLI, Chrome, LLVM, .NET SDK 等）。
+      # 内核编译（尤其是 Android 内核）需要巨大的磁盘空间，不清理可能会导致 No space left on device 错误。
       if: true
       uses: endersonmenezes/free-disk-space@v3  # Use @main for latest, @v3 for stable
       with:
@@ -72,12 +90,18 @@ jobs:
         testing: false
 
     - name: Download Build Dependencies
+      # 下载构建依赖：
+      # 从之前的 job（通常是 `download-dependencies`）下载预先准备好的工具链或依赖包。
+      # 这可能包括特定的编译器、工具或脚本，以避免每次构建都重复下载。
       uses: actions/download-artifact@v4
       with:
         name: build-dependencies
         path: .
 
     - name: Setup Build Environment
+      # 设置构建环境：
+      # 1. 创建内核工作目录。
+      # 2. 赋予 repo 工具执行权限并将其添加到 PATH 中，为拉取源码做准备。
       run: |
         mkdir -p "$GITHUB_WORKSPACE/kernel"
         
@@ -86,6 +110,10 @@ jobs:
         echo "$GITHUB_WORKSPACE/git-repo" >> "$GITHUB_PATH"
 
     - name: Download Kernel Repository
+      # 下载内核仓库：
+      # 调用 `download-kernel` action。
+      # 使用 Google 的 `repo` 工具初始化并同步指定 Android 版本和内核版本的 GKI 源代码。
+      # 它会根据前面解析出的版本信息来确定要 sync 的 manifest 分支。
       uses: ./.github/actions/download-kernel
       with:
         android_version: ${{ steps.parse.outputs.android_version }}
@@ -93,6 +121,11 @@ jobs:
         os_patch_level: ${{ steps.parse.outputs.os_patch_level }}
 
     - name: Extract Sublevel and Set File Name
+      # 提取子版本号并设置文件名：
+      # 1. 从内核源码的 Makefile 中提取确切的 SUBLEVEL（次版本号）。
+      #    这比输入参数更准确，因为源码可能包含未体现在分支名中的小版本更新。
+      # 2. 构造最终的输出文件名（包含完整版本号和变体名）。
+      # 3. 将这些值导出以供后续步骤使用。
       id: extract
       run: |
         SUBLEVEL="$SUB_LEVEL"
@@ -109,30 +142,10 @@ jobs:
         echo "file_name=$FILE_NAME" >> $GITHUB_OUTPUT
         echo "sublevel=$SUBLEVEL" >> $GITHUB_OUTPUT
 
-    - name: Apply glibc 2.38 Compatibility Fix
-      if: false
-      run: |
-        # Use SUBLEVEL for LTS builds, otherwise use the input sub_level
-        if [[ "$ANDROID_VERSION" == "android13" && "$KERNEL_VERSION" == "5.10" && $SUBLEVEL -le 186 ]] || 
-           [[ "$ANDROID_VERSION" == "android13" && "$KERNEL_VERSION" == "5.15" && $SUBLEVEL -le 119 ]] || 
-           [[ "$ANDROID_VERSION" == "android14" && "$KERNEL_VERSION" == "5.15" && $SUBLEVEL -le 110 ]] || 
-           [[ "$ANDROID_VERSION" == "android14" && "$KERNEL_VERSION" == "6.1" && $SUBLEVEL -le 43 ]]; then
-          GLIBC_VERSION=$(ldd --version 2>/dev/null | head -n 1 | awk '{print $NF}') 
-          if [ "$(printf '%s\n' "2.38" "$GLIBC_VERSION" | sort -V | head -n1)" = "2.38" ]; then 
-            cd "$GITHUB_WORKSPACE/kernel/common"
-            sed -i '/\$(Q)\$(MAKE) -C \$(SUBCMD_SRC) OUTPUT=\$(abspath \$(dir \$@))\/ \$(abspath \$@)/s//$(Q)$(MAKE) -C $(SUBCMD_SRC) EXTRA_CFLAGS="$(CFLAGS)" OUTPUT=$(abspath $(dir $@))\/ $(abspath $@)/' tools/bpf/resolve_btfids/Makefile 2>/dev/null || true
-            if [[ "$ANDROID_VERSION" == "android13" && "$KERNEL_VERSION" == "5.10" && $SUBLEVEL -le 186 ]] || 
-               [[ "$ANDROID_VERSION" == "android13" && "$KERNEL_VERSION" == "5.15" && $SUBLEVEL -le 119 ]] || 
-               [[ "$ANDROID_VERSION" == "android14" && "$KERNEL_VERSION" == "5.15" && $SUBLEVEL -le 110 ]]; then
-              sed -i '/char \*buf = NULL;/a int i;' tools/lib/subcmd/parse-options.c 2>/dev/null || true
-              sed -i 's/for (int i = 0; subcommands\[i\]; i++) {/for (i = 0; subcommands[i]; i++) {/' tools/lib/subcmd/parse-options.c 2>/dev/null || true
-              sed -i '/if (subcommands) {/a int i;' tools/lib/subcmd/parse-options.c 2>/dev/null || true
-              sed -i 's/for (int i = 0; subcommands\[i\]; i++)/for (i = 0; subcommands[i]; i++)/' tools/lib/subcmd/parse-options.c 2>/dev/null || true
-            fi
-          fi
-        fi 
-
     - name: Fix Less Than 6.6.50 Builds
+      # 修复 < 6.6.50 版本的构建问题：
+      # 针对 Android 15 Kernel 6.6 且版本低于 6.6.50 的情况。
+      # 在 `fs/namespace.c` 中强制包含头文件，解决可能的编译错误。
       if: ${{ steps.parse.outputs.android_version == 'android15' && steps.parse.outputs.kernel_version == '6.6' }}
       working-directory: ${{ github.workspace }}/kernel/common
       run: |
@@ -141,10 +154,20 @@ jobs:
         fi
 
     - name: Setup Wild KSU
+      # 设置 Wild KSU：
+      # 如果用户选择了包含 WKSU 功能。
+      # 调用 `wksu` action 来下载官方 KernelSU 源码并将其补丁应用到内核树中。
       if: contains(inputs.feature_set, 'WKSU')
       uses: ./.github/actions/wksu
+      with:
+        ksu_commit: ${{ inputs.ksu_commit || 'main' }}
 
     - name: Setup SUSFS
+      # 设置 SUSFS：
+      # 如果用户选择了包含 SUSFS 功能。
+      # 1. 启用内核配置 CONFIG_KSU_SUSFS=y。
+      # 2. 应用 SUSFS 的核心补丁。
+      # 3. 根据具体的内核版本应用额外的修复补丁（例如修复 open.c, fdinfo.c 等文件中的兼容性问题）。
       if: contains(inputs.feature_set, 'SUSFS')
       uses: ./.github/actions/susfs
       with:
@@ -154,10 +177,18 @@ jobs:
         sublevel: ${{ steps.parse.outputs.sub_level }}
 
     - name: Setup Baseband Guard
-      if: contains(inputs.feature_set, 'BBG')
+      # 设置 Baseband Guard (BBG)：
+      # 如果用户选择了包含 BBG 功能。
+      # 集成 Baseband Guard，这是一组保护基带分区的内核级安全措施。
+      # (Disabled by user request)
+      if: false # contains(inputs.feature_set, 'BBG')
       uses: ./.github/actions/bbg
 
     - name: Apply Module Check Bypass
+      # 应用模块检查绕过：
+      # 针对 'Bypass' 或 'Hakan' 变体。
+      # 修改 `module.c` 或 `version.c`，强制内核加载版本字符串不匹配的模块（将 bad_version 检查的返回值从 error 改为 success）。
+      # 这是一个核心功能，用于解决自定义内核无法加载原厂模块（导致 WiFi、触摸等失效）的问题。
       if: ${{ inputs.variant == 'Bypass' || inputs.variant == 'Hakan' }}
       run: |
         if [[ "$KERNEL_VERSION" == "6.1" || "$KERNEL_VERSION" == "6.6" || "$KERNEL_VERSION" == "6.12" ]]; then
@@ -178,18 +209,22 @@ jobs:
         fi
 
     - name: Apply Device-Specific Patches
+      # 应用设备特定补丁：
+      # 调用 `apply-device-patches` action。
+      # 这可能包含针对特定设备硬件的修复或优化补丁。
       uses: ./.github/actions/apply-device-patches
       with:
         kernel_version: ${{ steps.parse.outputs.kernel_version }}
 
-    - name: Configure Kernel Options
-      uses: ./.github/actions/configure-kernel
-
     - name: Setup Hakan
+      # 设置 Hakan 变体：
+      # 如果是 Hakan 变体，应用其特定的修改。
       if: ${{ inputs.variant == 'Hakan' }}
       uses: ./.github/actions/hakan
 
     - name: Setup vTomsonek
+      # 设置 vTomsonek 变体：
+      # 如果是 vTomsonek 变体，应用其特定的修改。
       if: ${{ inputs.variant == 'vTomsonek' }}
       uses: ./.github/actions/vtomsonek
       with:
@@ -199,6 +234,10 @@ jobs:
         os_patch_level: ${{ steps.parse.outputs.os_patch_level }}
 
     - name: Apply ABI Compare Bypass
+      # 应用 ABI 检查绕过：
+      # 修改构建系统脚本（如 `check_buildtime_symbol_protection.py` 或 `compare_to_symbol_list`）。
+      # 强制忽略 ABI (应用二进制接口) 差异检查。
+      # 这是必须的，因为添加 KSU/SUSFS 会改变内核符号表，导致官方 GKI 构建流程报错。
       working-directory: ${{ github.workspace }}/kernel
       run: |
         # ABI compare bypass per kernel/android version
@@ -218,6 +257,10 @@ jobs:
         fi
 
     - name: Append ashmem exports if missing
+      # 补充缺失的 ashmem 导出：
+      # (仅针对特定条件启用，如 Android 16 Kernel 6.12)
+      # 如果内核缺失 ashmem (Android Shared Memory) 的相关符号导出，手动添加占位符实现。
+      # 这对于某些依赖旧版内存共享机制的驱动或应用可能是必要的。
       if: ${{ steps.parse.outputs.android_version == 'android16' && steps.parse.outputs.kernel_version == '6.12' && false }}
       working-directory: ${{ github.workspace }}/kernel
       run: |
@@ -236,9 +279,9 @@ jobs:
         fi
 
         if [ -f common/drivers/android/binder/Makefile ]; then
-          perl -i -0777 -pe 's/\$\(\s*CONFIG_ANDROID_BINDER_IPC_RUST\s*\)/m/' common/drivers/android/binder/Makefile
+          perl -i -0777 -pe 's/\$\( *CONFIG_ANDROID_BINDER_IPC_RUST *\)/m/' common/drivers/android/binder/Makefile
           #perl -i -ne 'print unless /CONFIG_ANDROID_BINDER_IPC_RUST_DUMMY/' common/drivers/android/binder/Makefile
-          perl -i -pe 's/^rust_binder-\$\([^)]+\)\s*:=/rust_binder-y :=/' common/drivers/android/binder/Makefile
+          perl -i -pe 's/^rust_binder-\\\$\\(.*\)\s*:=/rust_binder-y :=/' common/drivers/android/binder/Makefile
           cat common/drivers/android/Makefile
           cat common/drivers/android/binder/Makefile
           #perl -ni -e 'print unless /rust_toolchain\s*=\s*"\/\/build\/rust:linux_kernel_toolchain",/' common/BUILD.bazel
@@ -248,37 +291,48 @@ jobs:
           rustup default nightly
           rustup target add aarch64-unknown-none
         else
-          perl -i -0777 -pe 's/\$\(\s*CONFIG_ANDROID_BINDER_IPC_RUST\s*\)/m/' common/drivers/android/Makefile
+          perl -i -0777 -pe 's/\$\( *CONFIG_ANDROID_BINDER_IPC_RUST *\)/m/' common/drivers/android/Makefile
           cat common/drivers/android/Makefile
         fi
 
     - name: Apply Kernel Branding
+      # 应用内核品牌信息：
+      # 修改内核版本字符串，添加自定义的标识（如 "Wild" 或变体名称）。
+      # 方便用户在系统设置中识别所刷入的内核版本。
       uses: ./.github/actions/apply-kernel-branding
       with:
         build_type: ${{ inputs.variant || 'Normal' }}
         kernel_version: ${{ steps.parse.outputs.kernel_version }}
 
     - name: Clean Kernel Flags
+      # 清理内核标志：
+      # 移除可能导致构建问题或导致内核被标记为 "Tainted" (受污染) 的标志。
+      # 确保构建出的内核尽可能干净。
       uses: ./.github/actions/clean-kernel-flags
 
     - name: Build Kernel
+      # 编译内核：
+      # 1. 执行 GKI 官方构建脚本 `build/build.sh`。
+      # 2. 如果是 Bazel 构建系统（如 Android 14+），则调用 `bazel build`。
+      # 3. 使用 `LTO=thin` (Link Time Optimization) 优化构建速度和产物性能。
       working-directory: ${{ github.workspace }}/kernel
       run: |
         set -ex
         #make -C common mrproper
         if [ -f "build/build.sh" ]; then
-          GKI_DEFCONFIG_FRAGMENT="$GITHUB_WORKSPACE/wild_gki.fragment" LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh || exit 1
+          LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh || exit 1
         else
-          # Copy fragment to kernel tree for bazel
-          cp "$GITHUB_WORKSPACE/wild_gki.fragment" common/arch/arm64/configs/wild_gki.fragment
           if [[ "$ANDROID_VERSION" == "android14" ]]; then
-            tools/bazel build --config=fast --lto=thin --defconfig_fragment=//common:arch/arm64/configs/wild_gki.fragment //common:kernel_aarch64_dist || exit 1
+            tools/bazel build --config=fast --lto=thin //common:kernel_aarch64_dist || exit 1
           else
-            tools/bazel build --config=fast --lto=none --defconfig_fragment=//common:arch/arm64/configs/wild_gki.fragment //common:kernel_aarch64_dist || exit 1
+            tools/bazel build --config=fast --lto=none //common:kernel_aarch64_dist || exit 1
           fi
         fi
 
     - name: Prepare AnyKernel3 Zip
+      # 准备 AnyKernel3 包：
+      # 1. 查找编译生成的 `Image` 文件（位置取决于构建系统是 make 还是 bazel）。
+      # 2. 将 `Image` 复制到 AnyKernel3 目录中，为打包做准备。
       run: |
         # Copy Image from normal build locations
         if [ -f "$GITHUB_WORKSPACE/kernel/out/$ANDROID_VERSION-$KERNEL_VERSION/dist/Image" ]; then
@@ -291,6 +345,10 @@ jobs:
         fi
     
     - name: Copy snd-aloop module
+      # 复制 snd-aloop 模块：
+      # (仅针对 vTomsonek 变体)
+      # 复制音频环回驱动模块 `snd-aloop.ko` 到 AnyKernel3 目录。
+      # 这通常用于特定的音频录制或处理需求。
       if: ${{ inputs.variant == 'vTomsonek' }}
       run: |
         if [ "${{ inputs.variant }}" = "vTomsonek" ]; then
@@ -309,6 +367,11 @@ jobs:
         cp "$SRC_DIR/g_audio.ko" "$GITHUB_WORKSPACE/AnyKernel3/modules/data/adb/lkm/"
 
     - name: Scan and collect patch rejects
+      # 扫描并收集拒绝文件：
+      # 1. 在内核构建目录中搜索 `.rej` 文件（patch 失败的产物）。
+      # 2. 如果找到，将它们复制到 `patch-rejects` 目录，并保留相对路径结构。
+      # 3. 同时尝试复制对应的原始文件，以便对比分析。
+      # 4. 统计拒绝文件的数量。
       id: scan
       if: ${{ always() }}
       run: |
@@ -341,6 +404,9 @@ jobs:
         fi
 
     - name: Upload Artifacts
+      # 上传工件：
+      # 将 `AnyKernel3` 目录（包含 Image 和刷机脚本）打包并上传。
+      # 这就是最终用户用于刷机的 ZIP 文件内容。
       uses: actions/upload-artifact@v4
       with:
         name: ${{ steps.extract.outputs.file_name }}-AnyKernel3
@@ -349,6 +415,9 @@ jobs:
         compression-level: 9
 
     - name: Upload Rejects
+      # 上传 Rejects：
+      # 如果在前面的步骤中发现了 `.rej` 文件，将它们上传以供调试。
+      # 只有在非 Bypass 变体且有 reject 文件时才执行。
       if: ${{ always() && inputs.variant != 'Bypass' && steps.scan.outputs.rej_count > 0 }}
       uses: actions/upload-artifact@v4
       with:
@@ -358,6 +427,9 @@ jobs:
         compression-level: 9
 
     - name: Build Summary
+      # 构建摘要：
+      # 在日志中输出本次构建的关键信息（版本、功能集、WKSU版本、BBG版本等）。
+      # 方便在 GitHub Actions 页面快速查看构建详情。
       if: ${{ always() }}
       run: |
         # Kernel info

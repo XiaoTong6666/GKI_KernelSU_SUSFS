@@ -1,31 +1,32 @@
-name: Setup Wild KSU
-description: Download and configure Wild KSU with version tracking
+name: Setup KernelSU
+description: 使用官方脚本集成最新的 KernelSU 源码
+
+inputs:
+  ksu_commit:
+    description: "KSU 分支、标签或提交哈希 (默认: main)"
+    required: false
+    default: "main"
 
 runs:
   using: composite
   steps:
-    - name: Download Wild KSU
+    - name: Run Official KernelSU Setup
       shell: bash
-      working-directory: ${{ github.workspace }}/kernel
+      working-directory: ${{ github.workspace }}/kernel/common
       run: |
-        mv "$GITHUB_WORKSPACE/Wild_KSU" ./
-        ./Wild_KSU/setup.sh
+        KSU_TARGET="${{ inputs.ksu_commit }}"
+        if [ -z "$KSU_TARGET" ]; then
+            KSU_TARGET="main"
+        fi
+        echo "正在安装官方 KernelSU，目标: $KSU_TARGET"
+        # 官方脚本会自动克隆 KernelSU 到 common/KernelSU 并建立 drivers/kernelsu 链接
+        curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s "$KSU_TARGET"
 
-    - name: Enable KernelSU Config
-      shell: bash
-      working-directory: ${{ github.workspace }}/kernel
-      run: |
-        cat >> "${{ github.workspace }}/wild_gki.fragment" << 'EOF'
-        # KernelSU Configuration
-        CONFIG_KSU=y
-        EOF
-    
     - name: Extract KSU Version Info
       id: ksu-version
       shell: bash
-      working-directory: ${{ github.workspace }}/kernel/Wild_KSU
+      working-directory: ${{ github.workspace }}/kernel/common/KernelSU
       run: |
-        # Extract and export KSU version info
         KSU_GIT_VERSION=$(git rev-list --count HEAD 2>/dev/null)
         KSU_GIT_TAG=$(git describe --tags --abbrev=0 2>/dev/null)
         KSU_COMMIT=$(git rev-parse --short HEAD 2>/dev/null)

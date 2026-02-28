@@ -1,11 +1,17 @@
 name: Build Kernels
 
+# 分析：
+# 此工作流负责编排各种 Android 版本的 GKI (Generic Kernel Image) 内核构建。
+# 它使用矩阵策略 (matrix strategy) 并行构建多个内核版本。
+# 主要功能包括集成 Wild KernelSU (WKSU)、SUSFS 和 Baseband Guard (BBG)。
+
 permissions:
   contents: write
   actions: write
 
 on:
   workflow_dispatch:
+    # 手动触发输入参数
     inputs:
       release_type:
         description: "Release Type"
@@ -18,32 +24,22 @@ on:
         default: ""
         required: false
       kernel_build_version:
+        # 控制要构建哪一组内核。'a13-5-15' 专门针对 Android 13 Kernel 5.15。
         description: "Kernel Version to Build"
         type: choice
         options:
           - all
-          - a12-5-10
-          - a13-5-10
           - a13-5-15
-          - a14-5-15
-          - a14-6-1
-          - a15-6-6
-          - a16-6-12
-          - lts
-          - custom
-          - testing
-          - bypass
-        default: custom
+        default: a13-5-15
       feature_set:
+        # 选择要打入内核的功能补丁。默认包含 WKSU 和 SUSFS。
         description: "Feature Set"
         type: choice
         options:
-          - WKSU+SUSFS+BBG
-          - WKSU+BBG
+          - WKSU+SUSFS
           - WKSU
-          - BBG
           - None
-        default: WKSU+SUSFS+BBG
+        default: WKSU+SUSFS
   push:
     branches:
       - main
@@ -52,375 +48,27 @@ jobs:
   download-dependencies:
     uses: ./.github/workflows/dependencies.yml
 
-  build-a12-5-10:
-    if: ${{ inputs.kernel_build_version == 'all' || inputs.kernel_build_version == 'a12-5-10' }}
-    needs: download-dependencies
-    strategy:
-      fail-fast: false
-      matrix:
-        kernel_version:
-          - "5.10.43-android12-2021-08"
-          - "5.10.43-android12-2021-09"
-          - "5.10.43-android12-2021-10"
-          - "5.10.66-android12-2021-11"
-          - "5.10.66-android12-2021-12"
-          - "5.10.66-android12-2022-01"
-          - "5.10.81-android12-2022-02"
-          - "5.10.81-android12-2022-03"
-          - "5.10.101-android12-2022-04"
-          - "5.10.101-android12-2022-05"
-          - "5.10.110-android12-2022-06"
-          - "5.10.110-android12-2022-07"
-          - "5.10.117-android12-2022-08"
-          - "5.10.117-android12-2022-09"
-          - "5.10.136-android12-2022-10"
-          - "5.10.136-android12-2022-11"
-          - "5.10.149-android12-2022-12"
-          - "5.10.149-android12-2023-01"
-          - "5.10.160-android12-2023-02"
-          - "5.10.160-android12-2023-03"
-          - "5.10.168-android12-2023-04"
-          - "5.10.168-android12-2023-05"
-          - "5.10.177-android12-2023-06"
-          - "5.10.177-android12-2023-07"
-          - "5.10.185-android12-2023-09"
-          - "5.10.198-android12-2023-11"
-          - "5.10.198-android12-2024-01"
-          - "5.10.205-android12-2024-03"
-          - "5.10.209-android12-2024-05"
-          - "5.10.218-android12-2024-08"
-          - "5.10.226-android12-2024-11"
-          - "5.10.233-android12-2025-02"
-          - "5.10.236-android12-2025-05"
-          - "5.10.237-android12-2025-06"
-          - "5.10.240-android12-2025-09"
-          - "5.10.246-android12-2025-12"
-    uses: ./.github/workflows/build.yml
-    secrets: inherit
-    with:
-      kernel_version: ${{ matrix.kernel_version }}
-      ksu_commit: ${{ inputs.ksu_commit || '' }}
-      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
-
-  build-a13-5-10:
-    if: ${{ inputs.kernel_build_version == 'all' || inputs.kernel_build_version == 'a13-5-10' }}
-    needs: download-dependencies
-    strategy:
-      fail-fast: false
-      matrix:
-        kernel_version:
-          - "5.10.107-android13-2022-04"
-          - "5.10.107-android13-2022-05"
-          - "5.10.107-android13-2022-06"
-          - "5.10.107-android13-2022-07"
-          - "5.10.107-android13-2022-08"
-          - "5.10.107-android13-2022-09"
-          - "5.10.107-android13-2022-10"
-          - "5.10.107-android13-2022-11"
-          - "5.10.149-android13-2022-12"
-          - "5.10.149-android13-2023-01"
-          - "5.10.157-android13-2023-02"
-          - "5.10.157-android13-2023-03"
-          - "5.10.168-android13-2023-04"
-          - "5.10.168-android13-2023-05"
-          - "5.10.177-android13-2023-06"
-          - "5.10.177-android13-2023-07"
-          - "5.10.186-android13-2023-08"
-          - "5.10.186-android13-2023-09"
-          - "5.10.189-android13-2023-10"
-          - "5.10.189-android13-2023-11"
-          - "5.10.198-android13-2023-12"
-          - "5.10.198-android13-2024-01"
-          - "5.10.205-android13-2024-02"
-          - "5.10.205-android13-2024-03"
-          - "5.10.209-android13-2024-04"
-          - "5.10.209-android13-2024-05"
-          - "5.10.210-android13-2024-06"
-          - "5.10.214-android13-2024-07"
-          - "5.10.218-android13-2024-08"
-          - "5.10.223-android13-2024-09"
-          - "5.10.223-android13-2024-11"
-          - "5.10.228-android13-2025-01"
-          - "5.10.234-android13-2025-03"
-          - "5.10.236-android13-2025-05"
-          - "5.10.238-android13-2025-07"
-          - "5.10.243-android13-2025-10"
-          - "5.10.246-android13-2026-01"
-    uses: ./.github/workflows/build.yml
-    secrets: inherit
-    with:
-      kernel_version: ${{ matrix.kernel_version }}
-      ksu_commit: ${{ inputs.ksu_commit || '' }}
-      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
-
   build-a13-5-15:
+    # Android 13 - Kernel 5.15 分析：
+    # 1. 条件：如果选择了 'all' 或 'a13-5-15' 则运行。
+    # 2. 依赖：等待 'download-dependencies' 完成。
     if: ${{ inputs.kernel_build_version == 'all' || inputs.kernel_build_version == 'a13-5-15' }}
     needs: download-dependencies
     strategy:
       fail-fast: false
       matrix:
+        # 矩阵策略：仅保留用户要求的 2025-01 版本。
         kernel_version:
-          - "5.15.41-android13-2022-06"
-          - "5.15.41-android13-2022-07"
-          - "5.15.41-android13-2022-08"
-          - "5.15.41-android13-2022-09"
-          - "5.15.41-android13-2022-10"
-          - "5.15.41-android13-2022-11"
-          - "5.15.74-android13-2022-12"
-          - "5.15.74-android13-2023-01"
-          - "5.15.78-android13-2023-02"
-          - "5.15.78-android13-2023-03"
-          - "5.15.94-android13-2023-04"
-          - "5.15.94-android13-2023-05"
-          - "5.15.104-android13-2023-06"
-          - "5.15.104-android13-2023-07"
-          - "5.15.119-android13-2023-08"
-          - "5.15.119-android13-2023-09"
-          - "5.15.123-android13-2023-10"
-          - "5.15.123-android13-2023-11"
-          - "5.15.137-android13-2023-12"
-          - "5.15.137-android13-2024-01"
-          - "5.15.144-android13-2024-02"
-          - "5.15.144-android13-2024-03"
-          - "5.15.148-android13-2024-04"
-          - "5.15.148-android13-2024-05"
-          - "5.15.149-android13-2024-06"
-          - "5.15.149-android13-2024-07"
-          - "5.15.151-android13-2024-08"
-          - "5.15.153-android13-2024-09"
-          - "5.15.167-android13-2024-11"
           - "5.15.170-android13-2025-01"
-          - "5.15.178-android13-2025-03"
-          - "5.15.180-android13-2025-05"
-          - "5.15.185-android13-2025-07"
-          - "5.15.189-android13-2025-09"
-          - "5.15.194-android13-2025-12"
+    # 可复用工作流调用：
+    # 将实际构建逻辑委托给 'build.yml'。
+    # 传递矩阵中的具体版本和全局输入。
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
       kernel_version: ${{ matrix.kernel_version }}
       ksu_commit: ${{ inputs.ksu_commit || '' }}
-      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
-
-  build-a14-5-15:
-    if: ${{ inputs.kernel_build_version == 'all' || inputs.kernel_build_version == 'a14-5-15' }}
-    needs: download-dependencies
-    strategy:
-      fail-fast: false
-      matrix:
-        kernel_version:
-          - "5.15.110-android14-2023-06"
-          - "5.15.110-android14-2023-08"
-          - "5.15.110-android14-2023-09"
-          - "5.15.131-android14-2023-11"
-          - "5.15.137-android14-2024-01"
-          - "5.15.144-android14-2024-02"
-          - "5.15.144-android14-2024-03"
-          - "5.15.148-android14-2024-04"
-          - "5.15.148-android14-2024-05"
-          - "5.15.149-android14-2024-06"
-          - "5.15.153-android14-2024-07"
-          - "5.15.158-android14-2024-08"
-          - "5.15.164-android14-2024-09"
-          - "5.15.167-android14-2024-11"
-          - "5.15.170-android14-2025-01"
-          - "5.15.178-android14-2025-03"
-          - "5.15.180-android14-2025-05"
-          - "5.15.185-android14-2025-07"
-          - "5.15.192-android14-2025-10"
-          - "5.15.196-android14-2026-01"
-    uses: ./.github/workflows/build.yml
-    secrets: inherit
-    with:
-      kernel_version: ${{ matrix.kernel_version }}
-      ksu_commit: ${{ inputs.ksu_commit || '' }}
-      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
-
-  build-a14-6-1:
-    if: ${{ inputs.kernel_build_version == 'all' || inputs.kernel_build_version == 'a14-6-1' }}
-    needs: download-dependencies
-    strategy:
-      fail-fast: false
-      matrix:
-        kernel_version:
-          - "6.1.25-android14-2023-06"
-          - "6.1.25-android14-2023-07"
-          - "6.1.25-android14-2023-08"
-          - "6.1.25-android14-2023-09"
-          - "6.1.25-android14-2023-10"
-          - "6.1.43-android14-2023-11"
-          - "6.1.57-android14-2023-12"
-          - "6.1.57-android14-2024-01"
-          - "6.1.68-android14-2024-02"
-          - "6.1.68-android14-2024-03"
-          - "6.1.75-android14-2024-04"
-          - "6.1.75-android14-2024-05"
-          - "6.1.78-android14-2024-06"
-          - "6.1.84-android14-2024-07"
-          - "6.1.90-android14-2024-08"
-          - "6.1.93-android14-2024-09"
-          - "6.1.99-android14-2024-10"
-          - "6.1.112-android14-2024-11"
-          - "6.1.115-android14-2024-12"
-          - "6.1.118-android14-2025-01"
-          - "6.1.124-android14-2025-02"
-          - "6.1.128-android14-2025-03"
-          - "6.1.129-android14-2025-04"
-          - "6.1.134-android14-2025-05"
-          - "6.1.138-android14-2025-06"
-          - "6.1.141-android14-2025-07"
-          - "6.1.145-android14-2025-08"
-          - "6.1.145-android14-2025-09"
-          - "6.1.157-android14-2025-12"
-    uses: ./.github/workflows/build.yml
-    secrets: inherit
-    with:
-      kernel_version: ${{ matrix.kernel_version }}
-      ksu_commit: ${{ inputs.ksu_commit || '' }}
-      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
-
-  build-a15-6-6:
-    if: ${{ inputs.kernel_build_version == 'all' || inputs.kernel_build_version == 'a15-6-6' }}
-    needs: download-dependencies
-    strategy:
-      fail-fast: false
-      matrix:
-        kernel_version:
-          - "6.6.30-android15-2024-07"
-          - "6.6.30-android15-2024-08"
-          - "6.6.46-android15-2024-09"
-          - "6.6.50-android15-2024-10"
-          - "6.6.56-android15-2024-11"
-          - "6.6.57-android15-2024-12"
-          - "6.6.58-android15-2025-01"
-          - "6.6.66-android15-2025-02"
-          - "6.6.77-android15-2025-03"
-          - "6.6.82-android15-2025-04"
-          - "6.6.87-android15-2025-05"
-          - "6.6.89-android15-2025-06"
-          - "6.6.92-android15-2025-07"
-          - "6.6.98-android15-2025-08"
-          - "6.6.98-android15-2025-09"
-          - "6.6.102-android15-2025-10"
-          - "6.6.118-android15-2026-01"
-    uses: ./.github/workflows/build.yml
-    secrets: inherit
-    with:
-      kernel_version: ${{ matrix.kernel_version }}
-      ksu_commit: ${{ inputs.ksu_commit || '' }}
-      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
-
-  build-a16-6-12:
-    if: ${{ inputs.kernel_build_version == 'all' || inputs.kernel_build_version == 'a16-6-12' }}
-    needs: download-dependencies
-    strategy:
-      fail-fast: false
-      matrix:
-        kernel_version:
-          - "6.12.23-android16-2025-05-exp"
-          - "6.12.23-android16-2025-06"
-          - "6.12.30-android16-2025-07"
-          - "6.12.38-android16-2025-08"
-          - "6.12.38-android16-2025-09"
-          - "6.12.58-android16-2025-12"
-    uses: ./.github/workflows/build.yml
-    secrets: inherit
-    with:
-      kernel_version: ${{ matrix.kernel_version }}
-      ksu_commit: ${{ inputs.ksu_commit || '' }}
-      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
-  
-  build-lts:
-    if: ${{ inputs.kernel_build_version == 'all' || inputs.kernel_build_version == 'lts' || github.event_name == 'push' }}
-    needs: download-dependencies
-    strategy:
-      fail-fast: false
-      matrix:
-        kernel_version:
-          - "5.10.X-android12-lts"
-          - "5.10.X-android13-lts"
-          - "5.15.X-android13-lts"
-          - "5.15.X-android14-lts"
-          - "6.1.X-android14-lts"
-          - "6.6.X-android15-lts"
-          - "6.12.X-android16-lts"
-    uses: ./.github/workflows/build.yml
-    secrets: inherit
-    with:
-      kernel_version: ${{ matrix.kernel_version }}
-      ksu_commit: ${{ inputs.ksu_commit || '' }}
-      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
-
-  build-custom:
-    if: ${{ inputs.kernel_build_version == 'all' || inputs.kernel_build_version == 'custom' }}
-    needs: download-dependencies
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - kernel_version: "5.10.226-android12-2024-11"
-            variant: "vTomsonek"
-          - kernel_version: "6.1.145-android14-2025-09"
-            variant: "TheWildJames"
-          - kernel_version: "6.1.157-android14-2025-12"
-            variant: "MarionKernel"
-          - kernel_version: "6.1.128-android14-2025-03"
-            variant: "Hakan"
-          - kernel_version: "5.10.226-android12-2024-11"
-            variant: "Neyugn"
-    uses: ./.github/workflows/build.yml
-    secrets: inherit
-    with:
-      kernel_version: ${{ matrix.kernel_version }}
-      variant: ${{ matrix.variant }}
-      ksu_commit: ${{ inputs.ksu_commit || '' }}
-      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
-
-  build-testing:
-    if: ${{ inputs.kernel_build_version == 'all' || inputs.kernel_build_version == 'testing' || github.event_name == 'push' }}
-    needs: download-dependencies
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - kernel_version: "6.1.145-android14-2025-08"
-            variant: "Placeholder"
-    uses: ./.github/workflows/build.yml
-    secrets: inherit
-    with:
-      kernel_version: ${{ matrix.kernel_version }}
-      variant: ${{ matrix.variant }}
-      ksu_commit: ${{ inputs.ksu_commit || '' }}
-      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
-
-  build-bypass:
-    if: ${{ inputs.kernel_build_version == 'all' || inputs.kernel_build_version == 'bypass' }}
-    needs: download-dependencies
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - kernel_version: "5.10.X-android12-lts"
-            variant: "Bypass"
-          - kernel_version: "5.10.X-android13-lts"
-            variant: "Bypass"
-          - kernel_version: "5.15.X-android13-lts"
-            variant: "Bypass"
-          - kernel_version: "5.15.X-android14-lts"
-            variant: "Bypass"
-          - kernel_version: "6.1.X-android14-lts"
-            variant: "Bypass"
-          - kernel_version: "6.6.X-android15-lts"
-            variant: "Bypass"
-          - kernel_version: "6.12.X-android16-lts"
-            variant: "Bypass"
-    uses: ./.github/workflows/build.yml
-    secrets: inherit
-    with:
-      kernel_version: ${{ matrix.kernel_version }}
-      variant: ${{ matrix.variant }}
-      ksu_commit: ${{ inputs.ksu_commit || '' }}
-      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
+      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS' }}
 
   rej:
     if: always()
@@ -429,30 +77,28 @@ jobs:
       actions: read
       contents: read
     needs:
-    - build-a12-5-10
-    - build-a13-5-10
     - build-a13-5-15
-    - build-a14-5-15
-    - build-a14-6-1
-    - build-a15-6-6
-    - build-a16-6-12
-    - build-custom
-    - build-lts
-    - build-testing
-    - build-bypass
     steps:
     - name: Download Misc Artifacts
+      # 下载“杂项”构件：
+      # 此步骤下载所有匹配 `*-Rejects` 模式的构建工件。
+      # 这些工件通常包含内核补丁应用失败时生成的 .rej 文件，用于后续的调试和分析。
       uses: actions/download-artifact@v5
       with:
         path: ./downloaded-artifacts
         pattern: '*-Rejects'
 
     - name: Process Reject Artifacts
+      # 处理拒绝 (Reject) 工件：
+      # 1. 遍历下载的 rejects 文件夹。
+      # 2. 将它们整理到 `aio-rejects` 目录中，保持目录结构清晰。
+      # 3. 如果发现任何拒绝文件，将它们打包成 `AIO-REJ.zip`。
       run: |
         mkdir -p aio-rejects
         
         # Iterate over Rejects artifacts in downloaded-artifacts
-        for dir in ./downloaded-artifacts/*-Rejects; do
+        for dir in ./downloaded-artifacts/*-Rejects
+        do
             # Ensure it is a directory
             [ -d "$dir" ] || continue
             
@@ -485,6 +131,8 @@ jobs:
         fi
 
     - name: Upload AIO-REJ Artifact
+      # 上传 AIO-REJ 工件：
+      # 将打包好的所有拒绝文件 (`AIO-REJ.zip`) 上传为工作流工件，供开发者下载查看。
       uses: actions/upload-artifact@v4
       with:
         name: AIO-REJ
@@ -492,22 +140,15 @@ jobs:
         if-no-files-found: ignore
 
   release:
+    # 分析：
+    # 收集所有成功构建任务的产物，并创建一个 GitHub Release。
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_type != 'Actions' }}
     permissions:
       contents: write
     needs:
-    - build-a12-5-10
-    - build-a13-5-10
+    # 必须等待所有可能的构建任务完成或跳过。
     - build-a13-5-15
-    - build-a14-5-15
-    - build-a14-6-1
-    - build-a15-6-6
-    - build-a16-6-12
-    - build-lts
-    - build-custom
-    - build-testing
-    - build-bypass
 
     env:
       GH_TOKEN: ${{ github.token }}
@@ -517,6 +158,9 @@ jobs:
       new_tag: ${{ steps.tag.outputs.new_tag }}
     steps:
     - name: Validate Selected Builds
+      # 验证所选构建：
+      # 检查用户请求构建的特定版本（例如 `a13-5-15`）是否成功完成。
+      # 如果任何预期的构建任务失败，则此步骤失败，阻止发布不完整的 Release。
       run: |
         set -euo pipefail
 
@@ -536,22 +180,15 @@ jobs:
           fi
         }
 
-        check_selected "a12-5-10" "build-a12-5-10" "${{ needs.build-a12-5-10.result }}"
-        check_selected "a13-5-10" "build-a13-5-10" "${{ needs.build-a13-5-10.result }}"
         check_selected "a13-5-15" "build-a13-5-15" "${{ needs.build-a13-5-15.result }}"
-        check_selected "a14-5-15" "build-a14-5-15" "${{ needs.build-a14-5-15.result }}"
-        check_selected "a14-6-1" "build-a14-6-1" "${{ needs.build-a14-6-1.result }}"
-        check_selected "a15-6-6" "build-a15-6-6" "${{ needs.build-a15-6-6.result }}"
-        check_selected "a16-6-12" "build-a16-6-12" "${{ needs.build-a16-6-12.result }}"
-        check_selected "custom" "build-custom" "${{ needs.build-custom.result }}"
-        check_selected "lts" "build-lts" "${{ needs.build-lts.result }}"
-        check_selected "testing" "build-testing" "${{ needs.build-testing.result }}"
 
         if [[ "$failed" -ne 0 ]]; then
           exit 1
         fi
 
     - name: Free Disk Space
+      # 释放磁盘空间：
+      # 移除不必要的预装软件（如 Android SDK, .NET, Docker 镜像等）以腾出空间处理大型构建工件。
       if: true
       uses: endersonmenezes/free-disk-space@v3  # Use @main for latest, @v3 for stable
       with:
@@ -568,9 +205,14 @@ jobs:
         testing: false
 
     - name: Checkout code
+      # 检出代码：
+      # 拉取当前仓库的代码，以便后续步骤可以访问脚本和模板文件。
       uses: actions/checkout@v4
 
     - name: Generate New Tag
+      # 生成新标签 (Tag)：
+      # 基于现有的 Git 标签生成一个新的发布版本号。
+      # 逻辑通常是递增修订版本号 (Revision)，例如从 `v1.0-r1` 增加到 `v1.0-r2`。
       id: tag
       if: inputs.release_type != 'Actions'
       run: |
@@ -594,6 +236,9 @@ jobs:
         echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
 
     - name: Set release body
+      # 设置 Release 说明：
+      # 生成发布说明文档 (release_body.md)。
+      # 包含了免责声明、功能列表（WKSU, SUSFS, BBG 等）、版本说明以及相关项目的链接。
       run: |
         cat << 'EOF' > release_body.md
 
@@ -652,6 +297,8 @@ jobs:
         EOF
 
     - name: Create GitHub Release
+      # 创建 GitHub Release：
+      # 使用 `gh release create` 命令，基于前面生成的标签和说明文档，在 GitHub 上正式创建一个 Release。
       run: |
         PRERELEASE_FLAG=""
         if [ "${{ inputs.release_type }}" == "Pre-Release" ]; then
@@ -666,13 +313,19 @@ jobs:
           $PRERELEASE_FLAG
 
     - name: Download Artifacts
+      # 下载工件：
+      # 下载所有 `*-AnyKernel3` 工件。这些是在构建阶段生成的刷机包文件夹。
       uses: actions/download-artifact@v5
       with:
         path: ./downloaded-artifacts
         pattern: '*-AnyKernel3'
 
     - name: Upload Release Assets
-      run: |+
+      # 上传发布资源：
+      # 1. 遍历下载的 AnyKernel3 文件夹。
+      # 2. 将每个文件夹压缩为 ZIP 文件。
+      # 3. 将这些 ZIP 文件上传到刚才创建的 GitHub Release 中，作为用户可下载的刷机包。
+      run: |
         shopt -s nullglob
         mapfile -t anykernel_dirs < <(find ./downloaded-artifacts -maxdepth 2 -type d -name '*-AnyKernel3' -print)
 
@@ -687,8 +340,7 @@ jobs:
           artifact_name=$(basename "$dir")
           # Upload release asset
           gh release upload "$NEW_TAG" "$GITHUB_WORKSPACE/${artifact_name}.zip" --clobber
-        done
-
+        
   notify:
     runs-on: ubuntu-latest
     needs: release
@@ -698,6 +350,8 @@ jobs:
       actions: read
     steps:
       - name: Free Disk Space
+        # 释放磁盘空间：
+        # 再次清理环境，虽然在 notify 阶段可能不是严格必要的，但保持好习惯。
         uses: endersonmenezes/free-disk-space@v3
         with:
           remove_android: true
@@ -713,6 +367,8 @@ jobs:
           testing: false
 
       - name: Send Telegram Notification
+        # 发送 Telegram 通知：
+        # 调用 `telegram-notify` action，将构建和发布结果发送到指定的 Telegram 频道或群组。
         uses: ./.github/actions/telegram-notify
         with:
           release_type: ${{ inputs.release_type }}
