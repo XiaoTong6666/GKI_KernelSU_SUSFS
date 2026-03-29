@@ -16,29 +16,16 @@ on:
         description: "Kernel Version to Build"
         type: choice
         options:
-          - all
-          - a12-5-10
-          - a13-5-10
-          - a13-5-15
-          - a14-5-15
           - a14-6-1
-          - a15-6-6
-          - a16-6-12
-          - lts
-          - custom
-          - testing
-          - bypass
-        default: custom
+        default: a14-6-1
       feature_set:
         description: "Feature Set"
         type: choice
         options:
-          - WKSU+SUSFS+BBG
-          - WKSU+BBG
-          - WKSU
-          - BBG
+          - KSU+SUSFS
+          - KSU
           - None
-        default: WKSU+SUSFS+BBG
+        default: KSU+SUSFS
       ksu_commit:
         description: "KSU Commit (optional)"
         type: string
@@ -67,60 +54,8 @@ jobs:
         with:
           ksu_commit: ${{ inputs.ksu_commit }}
 
-  build-a12-5-10:
-    if: ${{ inputs.kernel_build_version == 'all' || inputs.kernel_build_version == 'a12-5-10' || startsWith(github.ref, 'refs/tags/v') }}
-    needs: fetch-commits
-    uses: ./.github/workflows/prepare.yml
-    with:
-      config_file: .github/kernel-config/a12-5.10.json
-      ksu_commit: ${{ inputs.ksu_commit || needs.fetch-commits.outputs.ksu_commit }}
-      anykernel_commit: ${{ needs.fetch-commits.outputs.anykernel_commit }}
-      patches_commit: ${{ needs.fetch-commits.outputs.patches_commit }}
-      susfs_commit: ${{ needs.fetch-commits.outputs.susfs_commit }}
-      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
-    secrets: inherit
-
-  build-a13-5-10:
-    if: ${{ inputs.kernel_build_version == 'all' || inputs.kernel_build_version == 'a13-5-10' || startsWith(github.ref, 'refs/tags/v') }}
-    needs: fetch-commits
-    uses: ./.github/workflows/prepare.yml
-    with:
-      config_file: .github/kernel-config/a13-5.10.json
-      ksu_commit: ${{ inputs.ksu_commit || needs.fetch-commits.outputs.ksu_commit }}
-      anykernel_commit: ${{ needs.fetch-commits.outputs.anykernel_commit }}
-      patches_commit: ${{ needs.fetch-commits.outputs.patches_commit }}
-      susfs_commit: ${{ needs.fetch-commits.outputs.susfs_commit }}
-      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
-    secrets: inherit
-
-  build-a13-5-15:
-    if: ${{ inputs.kernel_build_version == 'all' || inputs.kernel_build_version == 'a13-5-15' || startsWith(github.ref, 'refs/tags/v') }}
-    needs: fetch-commits
-    uses: ./.github/workflows/prepare.yml
-    with:
-      config_file: .github/kernel-config/a13-5.15.json
-      ksu_commit: ${{ inputs.ksu_commit || needs.fetch-commits.outputs.ksu_commit }}
-      anykernel_commit: ${{ needs.fetch-commits.outputs.anykernel_commit }}
-      patches_commit: ${{ needs.fetch-commits.outputs.patches_commit }}
-      susfs_commit: ${{ needs.fetch-commits.outputs.susfs_commit }}
-      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
-    secrets: inherit
-
-  build-a14-5-15:
-    if: ${{ inputs.kernel_build_version == 'all' || inputs.kernel_build_version == 'a14-5-15' || startsWith(github.ref, 'refs/tags/v') }}
-    needs: fetch-commits
-    uses: ./.github/workflows/prepare.yml
-    with:
-      config_file: .github/kernel-config/a14-5.15.json
-      ksu_commit: ${{ inputs.ksu_commit || needs.fetch-commits.outputs.ksu_commit }}
-      anykernel_commit: ${{ needs.fetch-commits.outputs.anykernel_commit }}
-      patches_commit: ${{ needs.fetch-commits.outputs.patches_commit }}
-      susfs_commit: ${{ needs.fetch-commits.outputs.susfs_commit }}
-      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
-    secrets: inherit
-
   build-a14-6-1:
-    if: ${{ inputs.kernel_build_version == 'all' || inputs.kernel_build_version == 'a14-6-1' || startsWith(github.ref, 'refs/tags/v') }}
+    if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' }}
     needs: fetch-commits
     uses: ./.github/workflows/prepare.yml
     with:
@@ -129,85 +64,7 @@ jobs:
       anykernel_commit: ${{ needs.fetch-commits.outputs.anykernel_commit }}
       patches_commit: ${{ needs.fetch-commits.outputs.patches_commit }}
       susfs_commit: ${{ needs.fetch-commits.outputs.susfs_commit }}
-      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
-    secrets: inherit
-
-  build-a15-6-6:
-    if: ${{ inputs.kernel_build_version == 'all' || inputs.kernel_build_version == 'a15-6-6' || startsWith(github.ref, 'refs/tags/v') }}
-    needs: fetch-commits
-    uses: ./.github/workflows/prepare.yml
-    with:
-      config_file: .github/kernel-config/a15-6.6.json
-      ksu_commit: ${{ inputs.ksu_commit || needs.fetch-commits.outputs.ksu_commit }}
-      anykernel_commit: ${{ needs.fetch-commits.outputs.anykernel_commit }}
-      patches_commit: ${{ needs.fetch-commits.outputs.patches_commit }}
-      susfs_commit: ${{ needs.fetch-commits.outputs.susfs_commit }}
-      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
-    secrets: inherit
-
-  build-a16-6-12:
-    if: ${{ inputs.kernel_build_version == 'all' || inputs.kernel_build_version == 'a16-6-12' || startsWith(github.ref, 'refs/tags/v') }}
-    needs: fetch-commits
-    uses: ./.github/workflows/prepare.yml
-    with:
-      config_file: .github/kernel-config/a16-6.12.json
-      ksu_commit: ${{ inputs.ksu_commit || needs.fetch-commits.outputs.ksu_commit }}
-      anykernel_commit: ${{ needs.fetch-commits.outputs.anykernel_commit }}
-      patches_commit: ${{ needs.fetch-commits.outputs.patches_commit }}
-      susfs_commit: ${{ needs.fetch-commits.outputs.susfs_commit }}
-      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
-    secrets: inherit
-
-  build-lts:
-    if: ${{ inputs.kernel_build_version == 'all' || inputs.kernel_build_version == 'lts' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/v')) || startsWith(github.ref, 'refs/tags/v') }}
-    needs: fetch-commits
-    uses: ./.github/workflows/prepare.yml
-    with:
-      config_file: .github/kernel-config/lts.json
-      ksu_commit: ${{ inputs.ksu_commit || needs.fetch-commits.outputs.ksu_commit }}
-      anykernel_commit: ${{ needs.fetch-commits.outputs.anykernel_commit }}
-      patches_commit: ${{ needs.fetch-commits.outputs.patches_commit }}
-      susfs_commit: ${{ needs.fetch-commits.outputs.susfs_commit }}
-      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
-    secrets: inherit
-
-  build-custom:
-    if: ${{ inputs.kernel_build_version == 'all' || inputs.kernel_build_version == 'custom' || startsWith(github.ref, 'refs/tags/v') }}
-    needs: fetch-commits
-    uses: ./.github/workflows/prepare.yml
-    with:
-      config_file: .github/kernel-config/custom.json
-      ksu_commit: ${{ inputs.ksu_commit || needs.fetch-commits.outputs.ksu_commit }}
-      anykernel_commit: ${{ needs.fetch-commits.outputs.anykernel_commit }}
-      patches_commit: ${{ needs.fetch-commits.outputs.patches_commit }}
-      susfs_commit: ${{ needs.fetch-commits.outputs.susfs_commit }}
-      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
-    secrets: inherit
-
-  build-testing:
-    if: ${{ inputs.kernel_build_version == 'all' || inputs.kernel_build_version == 'testing' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/v')) || startsWith(github.ref, 'refs/tags/v') }}
-    needs: fetch-commits
-    uses: ./.github/workflows/prepare.yml
-    with:
-      config_file: .github/kernel-config/testing.json
-      ksu_commit: ${{ inputs.ksu_commit || needs.fetch-commits.outputs.ksu_commit }}
-      anykernel_commit: ${{ needs.fetch-commits.outputs.anykernel_commit }}
-      patches_commit: ${{ needs.fetch-commits.outputs.patches_commit }}
-      susfs_commit: ${{ needs.fetch-commits.outputs.susfs_commit }}
-      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
-    secrets: inherit
-
-  build-bypass:
-    if: ${{ inputs.kernel_build_version == 'all' || inputs.kernel_build_version == 'bypass' || startsWith(github.ref, 'refs/tags/v') }}
-    needs: fetch-commits
-    uses: ./.github/workflows/prepare.yml
-    with:
-      config_file: .github/kernel-config/bypass.json
-      ksu_commit: ${{ inputs.ksu_commit || needs.fetch-commits.outputs.ksu_commit }}
-      anykernel_commit: ${{ needs.fetch-commits.outputs.anykernel_commit }}
-      patches_commit: ${{ needs.fetch-commits.outputs.patches_commit }}
-      susfs_commit: ${{ needs.fetch-commits.outputs.susfs_commit }}
-      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
+      feature_set: ${{ inputs.feature_set || 'KSU+SUSFS' }}
     secrets: inherit
 
   rej:
@@ -217,17 +74,7 @@ jobs:
       actions: read
       contents: read
     needs:
-    - build-a12-5-10
-    - build-a13-5-10
-    - build-a13-5-15
-    - build-a14-5-15
     - build-a14-6-1
-    - build-a15-6-6
-    - build-a16-6-12
-    - build-custom
-    - build-lts
-    - build-testing
-    - build-bypass
     steps:
     - name: Download Misc Artifacts
       uses: actions/download-artifact@v4
@@ -286,21 +133,12 @@ jobs:
     permissions:
       contents: write
     needs:
-    - build-a12-5-10
-    - build-a13-5-10
-    - build-a13-5-15
-    - build-a14-5-15
     - build-a14-6-1
-    - build-a15-6-6
-    - build-a16-6-12
-    - build-lts
-    - build-custom
-    - build-bypass
     - rej
 
     env:
       GH_TOKEN: ${{ github.token }}
-      RELEASE_NAME: "GKI Kernels With WKSU & SUSFS v2.0.0"
+      RELEASE_NAME: "GKI KernelSU + SUSFS for Android 14 6.1.118"
       RELEASE_BODY: ""
     outputs:
       new_tag: ${{ steps.tag.outputs.new_tag }}
@@ -312,7 +150,7 @@ jobs:
         failed=0
         current_type="${{ inputs.kernel_build_version }}"
         if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-          current_type="all"
+          current_type="a14-6-1"
         fi
 
         check_selected() {
@@ -328,16 +166,7 @@ jobs:
           fi
         }
 
-        check_selected "a12-5-10" "build-a12-5-10" "${{ needs.build-a12-5-10.result }}"
-        check_selected "a13-5-10" "build-a13-5-10" "${{ needs.build-a13-5-10.result }}"
-        check_selected "a13-5-15" "build-a13-5-15" "${{ needs.build-a13-5-15.result }}"
-        check_selected "a14-5-15" "build-a14-5-15" "${{ needs.build-a14-5-15.result }}"
         check_selected "a14-6-1" "build-a14-6-1" "${{ needs.build-a14-6-1.result }}"
-        check_selected "a15-6-6" "build-a15-6-6" "${{ needs.build-a15-6-6.result }}"
-        check_selected "a16-6-12" "build-a16-6-12" "${{ needs.build-a16-6-12.result }}"
-        check_selected "custom" "build-custom" "${{ needs.build-custom.result }}"
-        check_selected "lts" "build-lts" "${{ needs.build-lts.result }}"
-        check_selected "bypass" "build-bypass" "${{ needs.build-bypass.result }}"
 
         if [[ "$failed" -ne 0 ]]; then
           exit 1
@@ -403,19 +232,11 @@ jobs:
         Please ensure you have proper backups before installation.
 
         Features:
-        -> Wild KSU Manager Support, Also Compatible with KernelSU-Next Manager
+        -> Official KernelSU Manager Support, Also Compatible with KernelSU-Next Manager
         -> SUSFS ඞ v2.0.0
         -> SUSFS Inline Hooks
         -> IPSet Support for Advanced Network Filtering
         -> BBRv1 TCP Congestion Control
-        -> BBG: https://github.com/vc-teahouse/Baseband-guard
-
-        🔹 BBG (Baseband-guard)
-        - A lightweight LSM (Linux Security Module) for Android kernel
-        - Blocks unauthorized writes to critical partitions/device nodes
-        - Prevents malicious tampering with baseband and boot chain
-        - Kernel-level protection via LSM hooks
-        - Reduces risk of soft-brick/hard-brick issues
 
         🔹 Bypass Builds
         - Includes module check bypass modifications 
@@ -427,7 +248,7 @@ jobs:
         -> https://github.com/fatalcoder524/KernelFlasher/
 
         Manager:
-        -> Wild KSU Manager: https://github.com/WildKernels/Wild_KSU
+        -> KernelSU: https://github.com/tiann/KernelSU
         -> Next: https://github.com/KernelSU-Next/KernelSU-Next
 
         Module: 
